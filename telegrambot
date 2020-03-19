@@ -1,36 +1,62 @@
-import requests
+import telebot
+import config
+import random
 
-url = "https://api.telegram.org/bot<1032632785:AAGzbhcU2VS0MK3gY2JQ0w9Qj6jQ1giYVmw>/"
+from telebot import types
 
+bot = telebot.TeleBot('config.TOKEN')
 
-def get_updates_json(request):
-    response = requests.get(request + 'getUpdates')
-    return response.json()
+@bot.message_handler(commands=['start'])
+def welcome(message):
+    sti = open('static/welcome.webp', 'rb')
+    bot.send_sticker(message.chat.id, sti)
 
+    # keyboard
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    item1 = types.KeyboardButton("🎲 Рандомное число")
+    item2 = types.KeyboardButton("😊 Как дела?")
 
-def last_update(data):
-    results = data['result']
-    total_updates = len(results) - 1
-    return results[total_updates]
+    markup.add(item1, item2)
 
-def get_chat_id(update):  
-    chat_id = update['message']['chat']['id']
-    return chat_id
+    bot.send_message(message.chat.id, "Добро пожаловать, {0.first_name}!\nЯ - <b>{1.first_name}</b>, бот созданный чтобы быть подопытным кроликом.".format(message.from_user, bot.get_me()),
+        parse_mode='html', reply_markup=markup)
 
-def send_mess(chat, text):  
-    params = {'chat_id': chat, 'text': text}
-    response = requests.post(url + 'sendMessage', data=params)
-    return response
+@bot.message_handler(content_types=['text'])
+def lalala(message):
+    if message.chat.type == 'private':
+        if message.text == '🎲 Рандомное число':
+            bot.send_message(message.chat.id, str(random.randint(0,100)))
+        elif message.text == '😊 Как дела?':
 
-chat_id = get_chat_id(last_update(get_updates_json(url)))
-send_mess(chat_id, 'Your message goes here')
-def main():  
-    update_id = last_update(get_updates_json(url))['update_id']
-    while True:
-        if update_id == last_update(get_updates_json(url))['update_id']:
-           send_mess(get_chat_id(last_update(get_updates_json(url))), 'test')
-           update_id += 1
-        sleep(1)       
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            item1 = types.InlineKeyboardButton("Хорошо", callback_data='good')
+            item2 = types.InlineKeyboardButton("Не очень", callback_data='bad')
 
-if __name__ == '__main__':  
-    main()  
+            markup.add(item1, item2)
+
+            bot.send_message(message.chat.id, 'Отлично, сам как?', reply_markup=markup)
+        else:
+            bot.send_message(message.chat.id, 'Я не знаю что ответить 😢')
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call):
+    try:
+        if call.message:
+            if call.data == 'good':
+                bot.send_message(call.message.chat.id, 'Вот и отличненько 😊')
+            elif call.data == 'bad':
+                bot.send_message(call.message.chat.id, 'Бывает 😢')
+
+            # remove inline buttons
+            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="😊 Как дела?",
+                reply_markup=None)
+
+            # show alert
+            bot.answer_callback_query(callback_query_id=call.id, show_alert=False,
+                text="ЭТО ТЕСТОВОЕ УВЕДОМЛЕНИЕ!!11")
+
+    except Exception as e:
+        print(repr(e))
+
+# RUN
+bot.polling(none_stop=True)
